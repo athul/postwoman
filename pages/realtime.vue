@@ -1,7 +1,7 @@
 <template>
   <div class="page">
-    <section id="options">
-      <input id="tab-one" type="radio" name="options" checked="checked" />
+    <section id="sections">
+      <input id="tab-one" type="radio" name="sections" checked="checked" />
       <label for="tab-one">WebSocket</label>
       <div class="tab">
         <pw-section class="blue" label="Request" ref="request">
@@ -37,6 +37,88 @@
             </div>
           </ul>
         </pw-section>
+
+        <section id="options">
+          <input id="tab-auth-one" type="radio" name="options" checked="checked" />
+          <label for="tab-auth-one">Authentication</label>
+          <div class="tab">
+            <pw-section
+              class="cyan"
+              label="Authentication"
+              ref="authentication"
+            >
+              <ul>
+                <li>
+                  <div class="flex-wrap">
+                    <label for="auth">Authentication Type</label>
+                    <div>
+                      <button
+                        class="icon"
+                        @click="clearContent('auth', $event)"
+                        v-tooltip.bottom="'Clear'"
+                      >
+                        <i class="material-icons">clear_all</i>
+                      </button>
+                    </div>
+                  </div>
+                  <select id="auth" v-model="auth">
+                    <option>None</option>
+                    <option>Basic</option>
+                    <option>Bearer Token</option>
+                  </select>
+                </li>
+              </ul>
+              <ul v-if="auth === 'Basic'">
+                <li>
+                  <input
+                    placeholder="User"
+                    name="http_basic_user"
+                    v-model="httpUser"
+                  />
+                </li>
+                <li>
+                  <input
+                    placeholder="Password"
+                    name="http_basic_passwd"
+                    :type="passwordFieldType"
+                    v-model="httpPassword"
+                  />
+                </li>
+                <div>
+                  <li>
+                    <button
+                      class="icon"
+                      id="switchVisibility"
+                      ref="switchVisibility"
+                      @click="switchVisibility"
+                    >
+                      <i
+                        class="material-icons"
+                        v-if="passwordFieldType === 'text'"
+                        >visibility</i
+                      >
+                      <i
+                        class="material-icons"
+                        v-if="passwordFieldType !== 'text'"
+                        >visibility_off</i
+                      >
+                    </button>
+                  </li>
+                </div>
+              </ul>
+              <ul v-else-if="auth === 'Bearer Token'">
+                <li>
+                  <input
+                    placeholder="Token"
+                    name="bearer_token"
+                    v-model="bearerToken"
+                  />
+                </li>
+              </ul>
+            </pw-section>
+          </div>
+        </section>
+
         <pw-section
           class="purple"
           label="Communication"
@@ -89,7 +171,7 @@
           </ul>
         </pw-section>
       </div>
-      <input id="tab-two" type="radio" name="options" />
+      <input id="tab-two" type="radio" name="sections" />
       <label for="tab-two">SSE</label>
       <div class="tab">
         <pw-section class="blue" label="Request" ref="request">
@@ -199,7 +281,13 @@ export default {
       events: {
         log: null,
         input: ""
-      }
+      },
+      auth: "None",
+      httpUser: null,
+      passwordFieldType: "text",
+      bearerToken: null,
+      httpPassword: null,
+      headers: []
     };
   },
   computed: {
@@ -250,7 +338,21 @@ export default {
         }
       ];
       try {
-        this.socket = new WebSocket(this.url);
+        if (this.auth === "Basic") {
+          var basic = this.httpUser + ":" + this.httpPassword;
+          headers.push(
+            '    "Authorization": "Basic ' +
+              window.btoa(unescape(encodeURIComponent(basic))) +
+              '",\n'
+          );
+        } else if (this.auth === "Bearer Token") {
+          headers.push(
+            '    "Authorization": "Bearer ' + this.bearerToken + '",\n'
+          );
+        }
+        this.socket = new WebSocket(this.url, {
+          headers
+        });
         this.socket.onopen = event => {
           this.connectionState = true;
           this.communication.log = [
@@ -430,6 +532,35 @@ export default {
     },
     stop() {
       this.sse.close();
+    },
+    clearContent(name, e) {
+      switch (name) {
+        case "auth":
+          this.auth = "None";
+          this.httpUser = "";
+          this.httpPassword = "";
+          this.bearerToken = "";
+          break;
+        default:
+          this.url = "wss://echo.websocket.org",
+          this.socket = null,
+          this.communication = {
+            log: null,
+            input: ""
+          }
+      }
+      e.target.innerHTML = this.doneButton;
+      this.$toast.info("Cleared", {
+        icon: "clear_all"
+      });
+      setTimeout(
+        () => (e.target.innerHTML = '<i class="material-icons">clear_all</i>'),
+        1000
+      );
+    },
+    switchVisibility() {
+      this.passwordFieldType =
+        this.passwordFieldType === "password" ? "text" : "password";
     }
   },
   updated: function() {
